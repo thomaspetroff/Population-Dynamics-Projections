@@ -1,0 +1,1014 @@
+---
+title: "Summative Assessment PDP"
+format: 
+  html:
+    embed-resources: true
+editor: visual
+---
+
+`echo: false`
+
+#### Install packages
+
+```{r}
+# Install necessary packages
+# install.packages("tidyverse")
+# install.packages("ggplot2")
+# install.packages("HMDHFDplus")
+# install.packages('MortalityLaws')
+# install.packages('DemoDecomp')
+```
+
+#### Load packages
+
+```{r}
+# load necessary packages
+library(tidyverse)
+library(HMDHFDplus)
+library(ggplot2)
+library(MortalityLaws)
+library(DemoDecomp)
+library(readxl)
+library(stringr)
+
+# don't display in scientific notation
+options(scipen = 999)
+```
+
+# Question 1 - Mortality
+
+Obtain single year LTs for Latvia and Italy from HMD
+
+```{r}
+# Obtain 1 year LTs for Latvia and Italy
+
+# code in comments for anonymity purposes
+
+# LT_females_Latvia <- readHMDweb(CNTRY = "LVA", item = "fltper_1x1", username = "***", password = "***")
+
+# LT_females_Italy <- readHMDweb(CNTRY = "ITA", item = "fltper_1x1", username = "***", password = "***")
+```
+
+```{r, echo=FALSE}
+
+# Obtain 1 year LTs for Latvia and Italy
+LT_females_Latvia <- readHMDweb(CNTRY = "LVA", item = "fltper_1x1", username = "tpetroff1212@gmail.com", password = "hzx-ufr!cad3tvg!URC")
+LT_females_Italy <- readHMDweb(CNTRY = "ITA", item = "fltper_1x1", username = "tpetroff1212@gmail.com", password = "hzx-ufr!cad3tvg!URC")
+```
+
+Create data frames that give e0 for both Latvia and Italy from 1970 to 2019. We will also merge these data frames so that we can plot e0 for both countries over time.
+
+```{r}
+# Filter data for e0 from 1970 to 2019 - Latvia
+e0_females_Latvia_DF <- LT_females_Latvia %>%
+  filter(Age == 0, Year >= 1970, Year <= 2019) %>%
+  select(Year, ex) %>%
+  mutate(Country = "Latvia")
+
+# change name of ex column to e0
+colnames(e0_females_Latvia_DF) <- c("Year","e0","Country")
+
+# Filter data for e0 from 1970 to 2019 - Italy
+e0_females_Italy_DF <- LT_females_Italy %>%
+  filter(Age == 0, Year >= 1970, Year <= 2019) %>%
+  select(Year, ex) %>%
+  mutate(Country = "Italy")
+
+# change name of ex column to e0
+colnames(e0_females_Italy_DF) <- c("Year","e0","Country")
+
+# Combine both datasets
+e0_Latvia_and_Italy_DF <- bind_rows(e0_females_Latvia_DF, e0_females_Italy_DF)
+```
+
+### 1. Plot e0 for both countries from 1970 - 2019 and describe the results
+
+```{r}
+# Plot life expectancy at birth over time
+ggplot(e0_Latvia_and_Italy_DF, aes(x = Year, y = e0, color = Country)) +
+  geom_line(linewidth = 1) +
+  labs(title = "Life expectancy at birth for females (1970-2019)",
+       x = "Year",
+       y = "Life Expectancy at Birth (e0)",
+       color = "Country") +
+  theme_minimal()
+```
+
+Describe results:
+
+Italy e0 appears to be improving at a constant rate over time. On the other hand, Latvia e0 stagnates somewhat from 1970 - 1990 and then e0 sharply drops in 1990. Around 1995, e0 in Latvia improves back to pre-1990 levels and then improves at a constant rate. It is also worthwhile to note that both Italy and Latvia have similar e0 in 1970, when the first year is specified. However, after 50 years, Latvia e0 in 2019, which is \~80, falls behind Italy by about 5 years, which is \~85.
+
+### 2. What was the difference in life expectancy at birth between these two countries in 1970, and in 2019?
+
+```{r}
+# Latvia
+e0_Latvia_1970 <- e0_females_Latvia_DF %>%
+  filter(Year == 1970) %>%
+  pull(e0)
+
+e0_Latvia_2019 <- e0_females_Latvia_DF %>%
+  filter(Year == 2019) %>%
+  pull(e0)
+
+e0_Latvia_2019 - e0_Latvia_1970 # 5.78 year difference in e0 from 1970 - 2019
+```
+
+```{r}
+# Italy
+e0_Italy_1970 <- e0_females_Italy_DF %>%
+  filter(Year == 1970) %>%
+  pull(e0)
+
+e0_Italy_2019 <- e0_females_Italy_DF %>%
+  filter(Year == 2019) %>%
+  pull(e0)
+
+e0_Italy_2019 - e0_Italy_1970 # 10.87 year difference in e0 from 1970 - 2019
+```
+
+### 3.
+
+### 1). subset the data for both countries in 2019 and for ages from 10 onward
+
+```{r}
+# Subset data for year 2019 and ages 10 and on - Latvia
+LT_females_Latvia_2019 <- LT_females_Latvia %>%
+  filter(Age >= 10, Year == 2019)
+
+# Subset data for year 2019 and ages 10 and on - Italy
+LT_females_Italy_2019 <- LT_females_Italy %>%
+  filter(Age >= 10, Year == 2019)
+```
+
+### 2). randomly assign NA values to 30 ages
+
+```{r}
+# Latvia - Randomly assign NA values to 30 ages
+set.seed(123)  # For reproducibility
+random_rows <- sample(nrow(LT_females_Latvia_2019), 30)  # Select 30 random row indices
+
+# Assign NA to all columns in the selected rows
+LT_females_Latvia_2019[random_rows, ] <- NA
+
+# Italy - Randomly assign NA values to 30 ages
+set.seed(123)  # For reproducibility
+random_rows <- sample(nrow(LT_females_Italy_2019), 30)  # Select 30 random row indices
+
+# Assign NA to all columns in the selected rows
+LT_females_Italy_2019[random_rows, ] <- NA
+```
+
+### 3). fit a Makeham model for both countries.
+
+**Latvia:**
+
+```{r}
+# first, remove rows with NA values as we did in the first week's HW.
+# MortalityLaw() function will not operate properly otherwise. 
+LT_females_Latvia_2019_clean <- na.omit(LT_females_Latvia_2019)
+
+# obtain mxs from LT_females_Latvia_2019_clean
+mx_values_Latvia <- LT_females_Latvia_2019_clean$mx
+
+# obtain ages from LT_females_Latvia_2019_clean
+ages_Latvia <- LT_females_Latvia_2019_clean$Age
+
+# create an object that transforms the mx values from LT_females_Latvia_2019_clean into log format
+log_mx_values_Latvia <- log(mx_values_Latvia)
+
+# append this object to the LT_females_Latvia_2019_clean dataset
+LT_females_Latvia_2019_clean$log_mx <- log_mx_values_Latvia
+
+# See available Mortality laws for reference
+# availableLaws(law = NULL)
+# We can see that the makeham mortality model is typically used to 
+# estimate adult mortality based on the legend (3 makeham)
+
+# Fit the makeham model, using poisson regression - Latvia
+makeham_fitted_Latvia <- MortalityLaw(x = LT_females_Latvia_2019_clean$Age, mx = mx_values_Latvia, law = "makeham", opt.method = "poissonL")
+```
+
+**Italy:**
+
+```{r}
+# first, remove rows with NA values
+LT_females_Italy_2019_clean <- na.omit(LT_females_Italy_2019)
+
+# obtain mxs from LT_females_Italy_2019_clean
+mx_values_Italy <- LT_females_Italy_2019_clean$mx
+
+# obtain ages from LT_females_Italy_2019_clean
+ages_Italy <- LT_females_Italy_2019_clean$Age
+
+# create an object that transforms the mx values from LT_females_Italy_2019_clean into log format
+log_mx_values_Italy <- log(mx_values_Italy)
+
+# append this object to the LT_females_Italy_2019_clean dataset
+LT_females_Italy_2019_clean$log_mx <- log_mx_values_Italy
+
+# Fit the makeham model, using poisson regression - Italy
+makeham_fitted_Italy <- MortalityLaw(x = LT_females_Italy_2019_clean$Age, mx = mx_values_Italy, law = "makeham", opt.method = "poissonL")
+```
+
+### 4. Plot observed and fitted values, and describe your findings. How good is the fit?
+
+**Latvia:**
+
+```{r}
+# create DF that includes ages, makeham mxs, and log makeham mxs
+# will use this DF to plot results
+makeham_DF_Latvia <- data.frame(Age = ages_Latvia,
+                                makeham_fitted_Latvia = predict(makeham_fitted_Latvia, x = ages_Latvia)) %>%
+  mutate(log_makeham_fitted_mx_Latvia = log(makeham_fitted_Latvia))
+
+
+# Create a plot of the observed log mx rates and the makeham fitted log mx rates
+makeham_Latvia <- ggplot() +
+  geom_point(data = LT_females_Latvia_2019_clean, aes(x=Age, y=log_mx, color = "Observed"), size=0.5) +
+  geom_line(data = makeham_DF_Latvia, aes(x = Age, y = log_makeham_fitted_mx_Latvia, color = "Makeham"), lwd=0.5) +
+  scale_color_manual(name = "Legend", 
+                     values = c("Observed" = "black",
+                                "Makeham" = "red"), 
+                     limits = c("Observed", "Makeham")) +
+  labs(title = "Observed vs. fitted log mortality rates for females in Latvia 2019",
+       y = "Log mortality rate",
+       x = 'Age (years)') +
+  theme(legend.position.inside = c(0.85, 0.25)) 
+
+makeham_Latvia 
+```
+
+For Latvia, this model fits relatively well for ages 30 and on. However, from ages 60-90, it seems to overestimate the mortality rates, which may be a cause for concern.
+
+**Italy:**
+
+```{r}
+# create DF that includes ages, makeham mxs, and log makeham mxs
+makeham_DF_Italy <- data.frame(Age = ages_Italy,
+                               makeham_fitted_Italy = predict(makeham_fitted_Italy, x = ages_Italy)) %>%
+  mutate(log_makeham_fitted_mx_Italy = log(makeham_fitted_Italy))
+
+# Create a plot of the observed log mx rates and the makeham fitted log mx rates - Italy
+makeham_Italy <- ggplot() +
+  geom_point(data = LT_females_Italy_2019_clean, aes(x=Age, y=log_mx, color = "Observed"), size=0.5) +
+  geom_line(data = makeham_DF_Italy, aes(x = Age, y = log_makeham_fitted_mx_Italy, color = "Makeham"), lwd=0.5) +
+  scale_color_manual(name = "Legend", 
+                     values = c("Observed" = "black",
+                                "Makeham" = "red"), 
+                     limits = c("Observed", "Makeham")) +
+  labs(title = "Observed vs. fitted log mortality rates for females in Italy 2019",
+       y = "Log mortality rate",
+       x = 'Age (years)') +
+  theme(legend.position.inside = c(0.85, 0.25)) 
+
+makeham_Italy
+```
+
+For Italy, this model fits relatively well, and actually performs better for ages \< 30. However, similar to what we saw with Latvia, the model overestimates mortality from ages 45 - 90, which may be a cause for concern.
+
+### 5. Write down the Makeham model, what does each parameter mean?
+
+μ(x) = A \* exp(Bx) + C where,
+
+-   μ(x) is the death rate or force of mortality at age x
+
+-   A is a parameter that determines the initial mortality rate
+
+-   B is a parameter that determines the rate at which mortality increases with age
+
+-   C represents mortality due to factors independent of age (makeham term)
+
+-   Note: the Makeham model extends on the Gompertz model, μ(x) = A \* exp(Bx), by incorporating C, the age-independent mortality component.
+
+### 6. Say you have data for a country from 1970 to 2019, and you would like to forecast life expectancy to 2040. How would you do it?
+
+To answer this question, I would use the Lee-Carter model (Lecture 9: Forecasting, Slide 4) to forecast life expectancy as we did in the forecasting practical in class on March 14th. The model is specified by the function: ln(mx,t) = αx+βxκt+ϵx,t where
+
+-   αx is the general shape of the log-mortality at age x
+
+-   βx is the rate of mortality improvement at age x
+
+-   κt is the general level of mortality at time t
+
+-   ϵx,t is the error with mean 0 and variance σ\^2,ϵ, which reflects the age-specific influences that aren’t captured in the model
+
+We first can use the data we have for the country of interest from 1970 to 2019 and model mortality by inputting the data for the relevant parameters. The main parameter of interest in forecasting mortality is κt, as this is the only parameter that contains time in its dimension (error does as well, but we measure this independently). We can identify how κt changes from 1970 to 2019 to see if mortality conditions are improving or worsening over time (Slide 11).
+
+We can then forecast mortality rates for each age group from 2020 to 2040 (20 years) using the κt values alongside the αx and βx values. 
+
+Lastly, through constructing a life table, we can then convert these forecasted mortality rates into forecasted life expectancy values.
+
+# Question 2 - Lifespan inequality and decomposition
+
+### 1. Build a function to calculate the standard deviation from a set of mortality rates.
+
+```{r}
+sd_function <- function(age, dx, ex, ax, l0) {
+  alphax <- age + ax
+  eta <- ex[1] +age[1]
+  inner <- dx * (alphax - eta)^2
+  V <- sum(inner) / l0
+  S <- sqrt(V)
+  return(S)
+}
+```
+
+### 2. Calculate the standard deviation for both countries from 1970 to 2019. \[describe the results, maybe a plot is useful\]
+
+```{r}
+# Latvia - create a DF that stores e0 and S
+results_Latvia <- LT_females_Latvia %>%
+  filter(Year >= 1970 & Year <= 2019) %>%  
+  group_by(Year) %>%  
+  summarize(
+    ex = first(ex),  
+    ax = list(ax),    
+    dx = list(dx),   
+    lx = list(lx),    
+    S = sd_function(
+      age = Age,
+      dx = dx[[1]],  
+      ex = ex,
+      ax = ax[[1]],  
+      l0 = 100000 
+    )
+  ) %>%
+  ungroup() %>%  
+  select(Year, e0 = ex, S)
+
+# Italy - create a DF that stores e0 and S
+results_Italy <- LT_females_Italy %>%
+  filter(Year >= 1970 & Year <= 2019) %>%  
+  group_by(Year) %>%  
+  summarize(
+    ex = first(ex),  
+    ax = list(ax),    
+    dx = list(dx),   
+    lx = list(lx),    
+    S = sd_function(
+      age = Age,
+      dx = dx[[1]],  
+      ex = ex,
+      ax = ax[[1]],  
+      l0 = 100000 
+    )
+  ) %>%
+  ungroup() %>%  
+  select(Year, e0 = ex, S)
+
+# Plot both countries together
+
+# add a country label
+results_Italy$Country <- "Italy"
+results_Latvia$Country <- "Latvia"
+
+# Merge the two data frames
+results_combined <- rbind(results_Italy, results_Latvia)
+
+# Plot
+ggplot(results_combined, aes(x = Year, y = S, color = Country)) +
+  geom_line(linewidth = 1.5) +
+  labs(title = "SD of Lifespan for females in Italy and Latvia 1970-2019",
+       x = "Year",
+       y = "Standard Deviation (S)") +
+  scale_color_manual(values = c("Italy" = "red", "Latvia" = "lightblue")) + 
+  theme_minimal()
+
+```
+
+### 3. Plot life expectancy at birth vs standard deviation, what do you observe?
+
+Simple plot of e0 vs. S
+
+```{r}
+# first: a simple plot with e0 on the x-axis and S on the y-axis
+# this follows what we have seen in the alternative measures
+# of longevity lecture (Slide 27)
+
+ggplot(results_combined, aes(x = e0, y = S, color = Country)) +
+  geom_line(linewidth = 1.5) +
+  labs(title = "e0 vs S for females in Italy and Latvia 1970-2019",
+       x = "Life expectancy at birth (e0)",
+       y = "Standard Deviation (S)") +
+  scale_color_manual(values = c("Italy" = "red", "Latvia" = "lightblue")) + 
+  theme_minimal()
+```
+
+Observations:
+
+-   This plot matches what we saw in the Alternative measures of longevity lecture (Slide 27: Life expectancy and life span inequality (σ)).
+
+-   Generally, we see that as life expectancy at birth improves, life span inequality reduces, which is the case in plot above.
+
+Can also be useful to see the relationship between e0 and S by plotting Latvia and Italy individually.
+
+```{r}
+# Latvia
+# to plot e0 and SD on the y-axis, we need to scale both approrpriately
+# scaling factors for e0 to match S's range
+min_S_Latvia <- min(results_Latvia$S, na.rm = TRUE)
+max_S_Latvia <- max(results_Latvia$S, na.rm = TRUE)
+min_e0_Latvia <- min(results_Latvia$e0, na.rm = TRUE)
+max_e0_Latvia <- max(results_Latvia$e0, na.rm = TRUE)
+
+# Scale e0 to match S's scale
+results_Latvia$e0_scaled <- (results_Latvia$e0 - min_e0_Latvia) / (max_e0_Latvia - min_e0_Latvia) * (max_S_Latvia - min_S_Latvia) + min_S_Latvia
+
+# plot e0 vs S
+ggplot(results_Latvia, aes(x = Year)) +
+  geom_line(aes(y = S, color = "S"), linewidth = 1.5) +
+  geom_line(aes(y = e0_scaled, color = "e0"), linewidth = 1.5) +
+  scale_y_continuous(
+    name = "Standard Deviation (S)",
+    sec.axis = sec_axis(~ (. - min_S_Latvia) / (max_S_Latvia - min_S_Latvia) * (max_e0_Latvia - min_e0_Latvia) + min_e0_Latvia,
+                        name = "Life Expectancy at Birth (e0)")
+  ) +
+  scale_color_manual(values = c("S" = "red", "e0" = "lightblue")) +
+  labs(title = "Lifespan Inequality and Life Expectancy for Females in Latvia (1970-2019)",
+       x = "Year",
+       color = "") +  
+  theme_minimal() +
+  theme(legend.position = "bottom")
+  
+# Italy
+# scaling factors for e0 to match S's range
+min_S_Italy <- min(results_Italy$S, na.rm = TRUE)
+max_S_Italy <- max(results_Italy$S, na.rm = TRUE)
+min_e0_Italy <- min(results_Italy$e0, na.rm = TRUE)
+max_e0_Italy <- max(results_Italy$e0, na.rm = TRUE)
+
+# Scale e0 to match S's scale
+results_Italy$e0_scaled <- (results_Italy$e0 - min_e0_Italy) / (max_e0_Italy - min_e0_Italy) * (max_S_Italy - min_S_Italy) + min_S_Italy
+
+# plot e0 vs S
+ggplot(results_Italy, aes(x = Year)) +
+  geom_line(aes(y = S, color = "S"), linewidth = 1.5) +
+  geom_line(aes(y = e0_scaled, color = "e0"), linewidth = 1.5) +
+  scale_y_continuous(
+    name = "Standard Deviation (S)",
+    sec.axis = sec_axis(~ (. - min_S_Italy) / (max_S_Italy - min_S_Italy) * (max_e0_Italy - min_e0_Italy) + min_e0_Italy,
+                        name = "Life Expectancy at Birth (e0)")
+  ) +
+  scale_color_manual(values = c("S" = "red", "e0" = "lightblue")) +
+  labs(title = "Lifespan Inequality and Life Expectancy for Females in Italy (1970-2019)",
+       x = "Year",
+       color = "") +  
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+### 4. Using the Horiuchi model for decomposition, decompose the change in lifespan inequality between 2000 and 2019 in both countries by age.
+
+To answer this question, we will need to first define an sd.frommx function in R
+
+```{r}
+# sd.frommx is defined as we saw in the practical on Change in LSV 1996-2023
+sd.frommx <- function(nmx =  mx, sex=1, age = c(0, 1, seq(5, 85, 5)), nax = NULL){
+  n   <- c(diff(age), 999)
+  
+  if (is.null(nax)) {
+    nax <- 0.5 * n
+    if (n[2] == 4) {
+      if (sex == 1) {
+        if (nmx[1] >= 0.107) {
+          nax[1] <- 0.33
+          nax[2] <- 1.352
+        }
+        else {
+          nax[1] <- 0.045 + 2.684 * nmx[1]
+          nax[2] <- 1.651 - 2.816 * nmx[1]
+        }
+      }
+      if (sex == 2) {
+        if (nmx[1] >= 0.107) {
+          nax[1] <- 0.35
+          nax[2] <- 1.361
+        }
+        else {
+          nax[1] <- 0.053 + 2.8 * nmx[1]
+          nax[2] <- 1.522 - 1.518 * nmx[1]
+        }
+      }
+    }
+  }
+  nqx          <- (n * nmx)/(1 + (n - nax) * nmx)
+  nqx          <- c(nqx[-(length(nqx))], 1)
+  nqx[nqx > 1] <- 1
+  
+  npx <- 1 - nqx
+  lx <- cumprod(c(1, npx))
+  ndx <- -diff(lx)
+  lxpn <- lx[-1]
+  nLxpn <- n * lxpn + ndx * nax
+  nLx <- c(nLxpn[-length(nLxpn)], lxpn[length(lxpn)-1]/nmx[length(nmx)])
+  Tx <- rev(cumsum(rev(nLx)))
+  lx <- lx[1:length(age)]
+  ex <- Tx/lx
+  nax[length(nax)] <- ex[length(ex)]
+  vx <- sum(ndx*(age+nax-ex[1L])^2)
+  sd <- sqrt(vx)
+  return(sd)
+} 
+```
+
+We also need to create an object that gives us labels for age groups
+
+```{r}
+#labels for age-groups 
+age_names<-c("0"="0","1"="1-4","5"="5-9","10"="10-14","15"="15-19","20"="20-24",
+             "25"="25-29","30"="30-34","35"="35-39","40"="40-44","45"="45-49",
+             "50"="50-54","55"="55-59","60"="60-64","65"="65-69","70"="70-74",
+             "75"="75-79","80"="80-84","85"="85+") 
+```
+
+**Latvia:**
+
+```{r}
+# obtain the mortality rates for each age
+# Note that the length of these vectors is 111. This is because we 
+# have mortality rates for each individual age
+mx1_Latvia <- LT_females_Latvia[LT_females_Latvia$Year == 2000,]$mx
+mx2_Latvia <- LT_females_Latvia[LT_females_Latvia$Year == 2019,]$mx
+
+# In order for the horiuchi model to work properly, the pars1 and pars2
+# parameters need to be of length 19, not 111. We need to transform the mx1_Latvia and mx2_Lativa vectors so that they are specifed by the same age groups as described by age_names, not individual ages.
+
+# here, we create a vector that will be used to transform our data into 
+# the typical unabridged LT format
+age_groups <- c(0, rep(1, 4), rep(seq(2, 18), each = 5), rep(18, 21))
+
+# Compute mean mortality rates for each group
+mx1_Latvia_19 <- tapply(mx1_Latvia, age_groups, mean)
+mx2_Latvia_19 <- tapply(mx2_Latvia, age_groups, mean)
+    
+# Convert to numeric vector
+mx1_Latvia_19 <- as.numeric(mx1_Latvia_19)
+mx2_Latvia_19 <- as.numeric(mx2_Latvia_19)
+
+# age specific contributions to the change in Lifespan variation
+Results_horiuchi_Latvia <- horiuchi(func = sd.frommx,
+                                    pars1 = mx1_Latvia_19,
+                                    pars2 = mx2_Latvia_19, N = 100)
+
+# Extract just the labels
+age_labels <- as.character(age_names)
+
+# Convert to an ordered factor, resolves issues had beforehand with plotting
+age_labels <- factor(age_labels, levels = age_labels) 
+
+# Plot Results
+    ggplot() +
+      ggtitle(bquote(~"Change in SD Latvia 2000-2019")) +
+      geom_bar(aes(x = age_labels, y = Results_horiuchi_Latvia), 
+               stat = "identity", position = "stack") +
+      xlab("Age Groups") +
+      ylab("Results")
+```
+
+**Italy:**
+
+```{r}
+# Italy
+mx1_Italy <- LT_females_Italy[LT_females_Italy$Year == 2000,]$mx
+mx2_Italy <- LT_females_Italy[LT_females_Italy$Year == 2019,]$mx
+
+# Compute mean mortality rates for each group
+mx1_Italy_19 <- tapply(mx1_Italy, age_groups, mean)
+mx2_Italy_19 <- tapply(mx2_Italy, age_groups, mean)
+
+# Convert to numeric vector
+mx1_Italy_19 <- as.numeric(mx1_Italy_19)
+mx2_Italy_19 <- as.numeric(mx2_Italy_19)
+
+# age specific contributions to the change in Lifespan variation
+Results_horiuchi_Italy <- horiuchi(func = sd.frommx,
+                                   pars1 = mx1_Italy_19,
+                                   pars2 = mx2_Italy_19, N = 100)
+
+# Plot results
+ggplot() +
+  ggtitle(bquote(~"Change in SD Italy 2000-2019")) +
+  geom_bar(aes(x = age_labels, y = Results_horiuchi_Italy), 
+           stat = "identity", position = "stack") +
+  xlab("Age Groups") +
+  ylab("Results")
+```
+
+### 5. Which age groups contribute to the changes observed? interpret your results and speculate what causes of death may be driving the observed trends.
+
+It appears that the first age group from ages 0 to 1 is contributing the most to changes in SD for both countries from 2000 to 2019. It may be that infant mortality was heavily reduced during this time, thus making the contribution to changes in SD more noticeable for this particular age group.
+
+As far as possible causes of death that may be driving this trend, it could be that less infants are dying from conditions of the perinatal period. Additionally, it may be that this age group is experiencing less deaths due to infectious disease, possibly due to improvements in treatment.
+
+### 6. How do we interpret lifespan inequality and why do authors think it is important?
+
+Lifespan inequality can be seen as an alternative measure of longevity, particularly alongside life expectancy. While life expectancy can be a useful measure for monitoring improvements in health and development across the globe, it doesn't tell us the whole story. Understanding lifespan inequality, which is interested in capturing the variation in when people die, is equally important for researchers and authors to consider.
+
+For example, two countries can have an improved life expectancy at birth of 15 years from 1950 to 2020, but they can experience different lifespan variations over this same time period. This is an important factor in measuring inequality because it involves going a step further to unpack whether deaths are more concentrated or dispersed around a specific age. In an ideal state, deaths would be more clustered around a specific age so as to indicate that individuals are dying "equally", for lack of a better term.
+
+# Question Three - Projections
+
+Load the data for France
+
+```{r}
+# set working directory to access France, WW1.xlsx
+setwd("~/Desktop/Term 2/Population Dynamics & Projections/Summative Assessment - work/")
+
+# load France, WW1 excel file
+France_WWI <- read_excel("France, WW1.xlsx")
+```
+
+Some data handling:
+
+```{r}
+# change column names, will make it simpler to follow code from practical
+colnames(France_WWI) <- c("age","nNx_m","nNx_m1920.5","nNx_f", "nNx_f1920.5", "nLx_m","nLx_f","nFx")
+
+# Read the data as a matrix
+France_WWI <- as.matrix(France_WWI) 
+
+# create separate matrices for females and males
+female <- France_WWI[,c("age","nLx_f","nFx","nNx_f")]
+male <- France_WWI[,c("age","nLx_m","nNx_m")]
+```
+
+Important definitions:
+
+```{r}
+year <- 1910.5 # mid-year population
+ages <- nrow(female) # The number of age groups
+radix <- 1 # The radix of a life table
+n <- 1 # The length of the age intervals—which is the same for all
+SRB <- 1.05 # The Sex Ratio at Birth
+```
+
+Female population, 1910.5:
+
+```{r}
+nLx_f <- female[,"nLx_f"] # creates a vector of nLx values for females in 1910.5
+nSx_f <- c(nLx_f[1]/(n*radix),nLx_f[2:(ages - 1)]/nLx_f[1:(ages - 2)],nLx_f[ages]/sum(nLx_f[(ages - 1):ages])) # Calculation of survivorship ratios
+nFx <- female[,"nFx"] # creates a vector of nFx values for females in 1910.5
+
+# Incorporates specific assumptions about fertility.
+nGx <- (nFx + c(nFx[2:ages]*nSx_f[2:ages],0))*n/2 
+```
+
+Create LESliE matrix which will be used for population projections:
+
+```{r}
+# Define a space for the Leslie matrix
+lESliE <- matrix(0,ages,ages) 
+
+# Inserts multipliers to project the first age group—depending on the age distribution of women in reproductive ages
+lESliE[1,] <- nGx*1/(1 + SRB)*nSx_f[1] 
+
+# Inserts multipliers to project (part of) the open-ended age group
+lESliE[ages,ages] <- nSx_f[ages] 
+
+# Inserts multipliers to project the remaining age groups
+for (x in 1:(ages - 1)) {
+  lESliE[x + 1,x] <- nSx_f[x + 1] 
+}
+```
+
+Create sub-matrices (lESliE_ff, lESliE_mm, lESliE_fm, and lESliE_mf):
+
+```{r}
+# Note we use the subscript ff to define a Leslie matrix to project female population using only female information
+lESliE_ff <- lESliE
+
+# Defines a space for the Leslie matrix to project male population using only male information.
+lESliE_mm <- matrix(0,ages,ages) 
+
+# Defines a space for the Leslie matrix to project male population using only female information 
+lESliE_fm <- matrix(0,ages,ages) 
+
+# Defines a null space for the Leslie matrix to project female population using only male information
+lESliE_mf <- matrix(0,ages,ages) 
+```
+
+Male population, 1910.5:
+
+```{r}
+# Male population
+nLx_m <- male[,"nLx_m"]
+
+# Calculation of survivorship ratios is the same as for female population, just using nLx_m instead
+nSx_m <- c(nLx_m[1]/(n*radix),nLx_m[2:(ages - 1)]/nLx_m[1:(ages - 2)],nLx_m[ages]/sum(nLx_m[(ages - 1):ages])) 
+
+# Inserts multipliers to project the first age group—depending on the age distribution of women in reproductive ages. Note that we have used the same nGx, but male nSx and multiply by the SRB
+lESliE_fm[1,] <- nGx*SRB/(1 + SRB)*nSx_m[1] 
+
+# Inserts multipliers to project (part of) the open-ended age group
+lESliE_mm[ages,ages] <- nSx_m[ages] 
+
+# Inserts multipliers to project the remaining age groups
+for (x in 1:(ages - 1)) {
+  lESliE_mm[x + 1,x] <- nSx_m[x + 1] 
+}
+```
+
+Now, extend LESLiE matrix to 202x202 to account for both sexes:
+
+```{r}
+# Concatenates the Leslie matrices for the two sexes 
+lESliE <- rbind(cbind(lESliE_ff,lESliE_mf),cbind(lESliE_fm,lESliE_mm)) 
+```
+
+Current vs. projected:
+
+```{r}
+current <- rbind(matrix(female[,"nNx_f"],ages),matrix(male[,"nNx_m"],ages)) 
+sum(current) # 39,185,119
+
+projected <- lESliE%*%current
+sum(projected) # 39,261,845
+```
+
+Now create a data frame called pop that takes the columns of interest:
+
+```{r}
+pop <- France_WWI[,c("age","nNx_m","nNx_f")] #Retains only relevant information for the two sexes
+colnames(pop)[colnames(pop) == "nNx_f"] <- str_c("nNx_f",sprintf("%.1f",year)) # Renames the current population using the reference year
+colnames(pop)[colnames(pop) == "nNx_m"] <- str_c("nNx_m",sprintf("%.1f",year))
+
+# don't execute command more than once, otherwise, pop object will change 
+# for loop iterates every 5 years (from 1910.5-1915.5 and 1915.5-1920.5)
+
+
+for (t in seq(year, year + 5*n, 5*n)) {
+  current <- rbind(matrix(pop[,str_c("nNx_f",sprintf("%.1f",t))],ages),matrix(pop[,str_c("nNx_m",sprintf("%.1f",t))],ages))
+  projected <- lESliE%*%current #Projects the population n years using the most recent data.#
+  female <- matrix(projected[1:ages,],ages) # Extracts female population
+  colnames(female)[1] <- str_c("nNx_f",sprintf("%.1f",t + 5*n)) # Gives a name to the projected female population
+  male <- matrix(projected[(1 + ages):(2*ages),],ages) # Extracts male population
+  colnames(male)[1] <- str_c("nNx_m",sprintf("%.1f",t + 5*n)) # Gives a name to the projected male population
+  pop <- cbind(pop,male,female) # Concatenates the table to include the new set of projections for each sex
+}
+
+pop # lists the current population for males and females in 1910.5,
+# and projects for years 1915.5 and 1920.5
+
+```
+
+### 1. Calculate the Total Fertility Rate of this population
+
+```{r}
+TFR <- sum(nFx)*n 
+TFR # TFR = 2.61 births per woman 
+```
+
+### 2. Calculate the Net Reproduction Rate of this population
+
+```{r}
+NRR <- sum(nFx*nLx_f/radix)*(1/(1+SRB)) # Formula on Slide 27 from Cohort Compoent Model Slides
+NRR # NRR = 0.9700091 , NRR < 1 posing that the population will decline
+```
+
+### 3. Calculate the projected number of births from 1910 to 1920 by age group of the mother
+
+The following command only gives us the projected number of births by age group of the mother one year in advance:
+
+```         
+# projected_births <- ((current + lESliE%*%current)/2) * nFx * n
+```
+
+So, we must create a for loop that gives us the number of births by age group per year from 1910.5 - 1920.5
+
+```{r}
+# Set up parameters
+years = seq(1910.5, 1919.5, by = 1)  
+
+# Initialize birth_by_age_group object
+births_by_age_group <- matrix(0, nrow <-  length(current), ncol <-  length(years))  # Stores births per year per age group
+
+# Loop from 1910.5 to 1920.5 (each step projects to the next year)
+# only complete loop once, otherwise results are conflated
+for (t in 1:length(years)) {
+  # Project population one year forward
+  projected_population <- lESliE %*% current
+  
+  # Compute births by age group for this particular year
+  births_by_age_group[, t] <-  ((current + projected) / 2) * nFx * n # this is the formula as seen above
+  
+  # Update population for next iteration
+  current <-  projected
+}
+
+    
+# Here, I've specified that I'm only interested in looking at the age groups of the females and not males, as males can't give birth. In other words, we only look at the first 100 ages.
+births_by_age_group <- births_by_age_group[0:101, ]
+
+# Let's also change the column names
+colnames(births_by_age_group) <- c("1911.5", "1912.5", "1913.5", "1914.5", "1915.5", "1916.5", "1917.5", "1918.5", "1919.5", "1920.5")
+
+births_by_age_group
+```
+
+### 4. Calculate the projected total number of births for each projected year
+
+```{r}
+# Calculate the projected total number of births for each year
+total_births <- colSums(births_by_age_group)
+total_births
+```
+
+### 5. Calculate how many are projected to be male births
+
+```{r}
+male_births <- total_births * SRB / (1 + SRB)
+male_births
+```
+
+### 6. Using a plot of overlapping population pyramids, compare the projected population of 1920.5 with the population counts of the same year (post-exposure).
+
+Projected Population - 1920.5:
+
+```{r}
+# projected population for 1920.5
+
+pop <- data.frame(pop)
+projected_pop_1920.5 <- pop
+
+# remove non-relevant column years
+projected_pop_1920.5 <- projected_pop_1920.5 %>% 
+  select(-c(nNx_m1910.5, nNx_f1910.5, nNx_m1915.5, nNx_f1915.5))
+
+# Convert male population to negative values 
+projected_pop_1920.5 <- projected_pop_1920.5 %>%
+  mutate(nNx_m1920.5 = -nNx_m1920.5)
+
+# create an object projected_pop_long that converts projected_pop_1920.5 to long format
+projected_pop_long <- projected_pop_1920.5 %>%
+  pivot_longer(cols = c(nNx_m1920.5, nNx_f1920.5), 
+               names_to = "Sex", 
+               values_to = "Population") 
+
+# Recode Sex labels
+projected_pop_long$Sex <- recode(projected_pop_long$Sex, 
+                              nNx_m1920.5 = "Male", 
+                              nNx_f1920.5 = "Female")
+
+# add a column to specify the percentage of pop instead of absolute value
+projected_pop_long <- projected_pop_long %>%
+  group_by(Sex) %>%  # Ensure we calculate proportions separately for each sex
+  mutate(Proportion = Population / sum(abs(Population))) %>%
+  ungroup()  # Remove grouping after calculation
+```
+
+Plot a population pyramid for just the projected population in 1920.5:
+
+```{r}
+# Transform data frame into age groups and not single year age-intervals
+# to make more interpretable on a plot
+projected_pop_long <- projected_pop_long %>%
+  mutate(Age_Group = cut(age, 
+         breaks = c(0, 1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, Inf), 
+         labels = c("0-1", "1-4", "5-9", "10-14", "15-19", "20-24","25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70-74", "75-79", "80-84", "85-89", "90-94", "95+"),
+         right = FALSE))  # Ensures left-inclusive intervals
+
+# Plot
+ggplot(projected_pop_long, aes(x = Proportion, y = Age_Group, fill = Sex)) +
+          geom_col(width = 0.8, position = "identity") +  # Use geom_col() instead of geom_bar()
+          scale_fill_manual(values = c("Male" = "blue", "Female" = "red"), breaks = c("Male", "Female")) +
+          scale_x_continuous(labels = abs) +  # Keep x-axis values positive 
+          labs(title = "France Projected Population 1920.5",
+               x = "Proportion of total population",
+               y = "Age Group",
+               fill = "") +
+          theme_minimal() +
+          theme(legend.position = "bottom")
+```
+
+Actual Population - 1920.5:
+
+```{r}
+# transform France_WWI into a data frame to work with
+France_WWI <- data.frame(France_WWI)
+actual_pop_1920.5 <- France_WWI
+
+# remove non-relevant column years
+actual_pop_1920.5 <- actual_pop_1920.5 %>% 
+  select(-c(nNx_m, nNx_f, nLx_m, nLx_f, nFx))
+
+# Convert male population to negative values
+actual_pop_1920.5 <- actual_pop_1920.5 %>%
+  mutate(nNx_m1920.5 = -nNx_m1920.5)
+
+# create an object call actual_pop_long that converts to long format
+actual_pop_long <- actual_pop_1920.5 %>%
+  pivot_longer(cols = c(nNx_m1920.5, nNx_f1920.5), 
+               names_to = "Sex", 
+               values_to = "Population") 
+
+# Recode Sex labels
+actual_pop_long$Sex <- recode(actual_pop_long$Sex, 
+                              nNx_m1920.5 = "Male", 
+                              nNx_f1920.5 = "Female")
+
+# add a column to specify the percentage of pop instead of absolute value
+actual_pop_long <- actual_pop_long %>%
+  group_by(Sex) %>%  # Ensure we calculate proportions separately for each sex
+  mutate(Proportion = Population / sum(abs(Population))) %>%
+  ungroup()  # Remove grouping after calculation
+```
+
+Plot a population pyramid for just the actual population in 1920.5:
+
+```{r}
+# Transform data frame into age groups and not single year age-intervals
+actual_pop_long <- actual_pop_long %>%
+  mutate(Age_Group = cut(age, 
+         breaks = c(0, 1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, Inf), 
+         labels = c("0-1", "1-4", "5-9", "10-14", "15-19", "20-24","25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70-74", "75-79", "80-84", "85-89", "90-94", "95+"),
+         right = FALSE))  # Ensures left-inclusive intervals
+
+
+# Plot
+ggplot(actual_pop_long, aes(x = Proportion, y = Age_Group, fill = Sex)) +
+          geom_col(width = 0.8, position = "identity") +  # Use geom_col() instead of geom_bar()
+          scale_fill_manual(values = c("Male" = "blue", "Female" = "red"), breaks = c("Male", "Female")) +
+          scale_x_continuous(labels = abs) +  # Keep x-axis values positive 
+          labs(title = "France Actual Population 1920.5",
+               x = "Proportion of total population",
+               y = "Age Group",
+               fill = "") +
+          theme_minimal() +
+          theme(legend.position = "bottom")
+```
+
+Now, overlap the two population pyramids to identify where differences exist:
+
+```{r}
+# combined population pyramids - actual vs. projected
+# Merge actual and projected data
+    combined_pop_long <- bind_rows(
+      projected_pop_long %>% mutate(Type = "Projected"),
+      actual_pop_long %>% mutate(Type = "Actual")
+    )
+    
+    
+# Create the overlapping population pyramids
+ggplot(combined_pop_long, aes(x = Proportion, y = Age_Group, fill = interaction(Sex, Type))) +
+  geom_col(width = 0.8, position = "identity") +  
+  scale_fill_manual(values = c("Male.Actual" = "blue", "Male.Projected" = "lightblue", 
+                               "Female.Actual" = "red", "Female.Projected" = "pink")) +
+  scale_x_continuous(labels = abs) +  
+  labs(title = "Actual vs. Projected Population - France 1920.5",
+       x = "Proportion of Total Population",
+       y = "Age Group",
+       fill = "") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+### 7. Identify the age groups that were mostly affected during the Great War
+
+Comparing the two population pyramids, it appears that males ages 25 - 40 were severely affected during the Great War. This intuitively makes sense as more men of these age groups were likely fighting during the Great War, which started in 1914 and went until 1919. We can see that this pattern is not noticed with females.
+
+Looking at the plot, it is clear to see that the age group 1-4 was also heavily impacted from the Great War. This makes sense as it is understandable that at this time of crisis, many families are not having as many children.
+
+The difference between the projected population and the actual population for males in this age interval is 630,017. For females, the difference between the projected population and the actual population is 618,130. This is for a total population difference of 1,248,147, which is quite the difference (see R code below for how results were obtained)
+
+```{r}
+# Summing the male population in the 1-4 age group - projected
+male_pop_age_group_1_4_projected <- projected_pop_long %>%
+  filter(Sex == "Male", Age_Group == "1-4") %>%
+  summarise(total_population = abs(sum(Population, na.rm = TRUE)))
+
+# Summing the male population in the 1-4 age group - actual
+male_pop_age_group_1_4_actual <- actual_pop_long %>%
+  filter(Sex == "Male", Age_Group == "1-4") %>%
+  summarise(total_population = abs(sum(Population, na.rm = TRUE)))
+  
+# Difference between the two - males
+male_pop_age_group_1_4_projected - male_pop_age_group_1_4_actual
+
+# Summing the female population in the 1-4 age group - projected
+female_pop_age_group_1_4_projected <- projected_pop_long %>%
+  filter(Sex == "Female", Age_Group == "1-4") %>%
+  summarise(total_population = abs(sum(Population, na.rm = TRUE)))
+
+# Summing the male population in the 1-4 age group - actual
+female_pop_age_group_1_4_actual <- actual_pop_long %>%
+  filter(Sex == "Female", Age_Group == "1-4") %>%
+  summarise(total_population = abs(sum(Population, na.rm = TRUE)))
+
+# Difference between the two - females
+female_pop_age_group_1_4_projected - female_pop_age_group_1_4_actual
+
+# Total difference
+(female_pop_age_group_1_4_projected + male_pop_age_group_1_4_projected) - (female_pop_age_group_1_4_actual + male_pop_age_group_1_4_actual)
+```
+
+**References:**
+
+Aburto, J.M., Villavicencio, F., Basellini, U., Kjærgaard, S., & Vaupel, J.W. (2020). Dynamics of life expectancy and life span equality. *Proceedings of the National Academy of Sciences of the United States of America*, *117*(10), 5250–5259.
+
+Aburto, J.M. (2025) “Alternative measures of longevity” \[Lecture\] 2429 Population Dynamics & Projections. London School of Hygiene & Tropical Medicine. 07 March.
+
+Aburto, J.M. (2025) “Mortality forecasting: Lee-Carter (based on Ugo Basellini's notes)” \[Lecture\] 2429 Population Dynamics & Projections. London School of Hygiene & Tropical Medicine. 14 March.
+
+**Statement to acknowledge AI use:**
+
+*I used ChatGPT (OpenAI, 2025) to assist with the debugging of R code as specified on the cover sheet form.*
